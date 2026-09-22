@@ -1,0 +1,5 @@
+target/
+.git/
+*.log
+# Ensure .mvn is NOT here, or explicitly allow it:
+# !.mvn
