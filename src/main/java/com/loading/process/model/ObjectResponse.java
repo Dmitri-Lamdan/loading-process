@@ -9,17 +9,16 @@ import com.loading.process.model.IntervalRecord;
 import com.loading.process.model.ServiceTaskRecord;
 
 public record ObjectResponse(
-        String id,
-        String name,
-        String type,
-        String status,
-        Instant createdAt,
-        Instant updatedAt,
-        Instant lastChangeDate,
-        BigDecimal currentValue,
-        LocalDate nextServiceDate,
-        List<EventLogRecord> events,
-        List<IntervalRecord> intervals,
-        List<ServiceTaskRecord> serviceTasks) {
+                String id,
+                String name,
+                String type,
+                ObjectStatus status,
+                Instant createdAt,
+                Instant updatedAt,
+                Instant lastChangeDate,
+                BigDecimal currentValue,
+                LocalDate nextServiceDate,
+                List<EventLogRecord> events,
+                List<IntervalRecord> intervals,
+                List<ServiceTaskRecord> serviceTasks) {
 }
-

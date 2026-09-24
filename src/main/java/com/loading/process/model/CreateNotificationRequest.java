@@ -4,8 +4,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record CreateNotificationRequest(
-        UUID objectId,
-        UUID userId,
-        String message,
-        boolean isRead
-) {}
+                UUID objectId,
+                UUID userId,
+                String message,
+                NotificationStatus status,
+                boolean isRead) {
+}

@@ -100,6 +100,7 @@
 | userId |	UUID (FK)	| Идентификатор пользователя (ссылка на User.id)
 | createdAt	| timestamp	| Дата создания уведомления
 | message	| varchar(255) | Текст уведомления
+| status	| NotificationStatus | Статус обработки: `pending`, `sent`, `completed` или `cancelled`; по умолчанию `pending`
 | isRead	| boolean	| Статус прочтения
 
 
@@ -173,6 +174,7 @@ classDiagram
     UUID userId
     timestamp createdAt
     string message
+    NotificationStatus status
     boolean isRead
   }
 

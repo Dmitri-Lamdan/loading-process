@@ -3,13 +3,14 @@ package com.loading.process.entity;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import com.loading.process.model.ObjectStatus;
 
 public class ObjectEntity {
 
     private String id;
     private String name;
     private String type;
-    private String status;
+    private ObjectStatus status;
     private Instant createdAt;
     private Instant updatedAt;
     private Instant lastChangeDate;
@@ -19,7 +20,7 @@ public class ObjectEntity {
     public ObjectEntity() {
     }
 
-    public ObjectEntity(String id, String name, String type, String status,
+    public ObjectEntity(String id, String name, String type, ObjectStatus status,
             Instant createdAt, Instant updatedAt, Instant lastChangeDate,
             BigDecimal currentValue, LocalDate nextServiceDate) {
         this.id = id;
@@ -57,11 +58,11 @@ public class ObjectEntity {
         this.type = type;
     }
 
-    public String getStatus() {
+    public ObjectStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ObjectStatus status) {
         this.status = status;
     }
 

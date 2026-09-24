@@ -8,6 +8,7 @@ import com.loading.process.model.EventLogRecord;
 import com.loading.process.model.IntervalRecord;
 import com.loading.process.model.ServiceTaskRecord;
 import com.loading.process.model.ObjectType;
+import com.loading.process.model.ObjectStatus;
 import com.loading.process.repository.EventLogRepository;
 import com.loading.process.repository.IntervalRepository;
 import com.loading.process.repository.ServiceTaskRepository;
@@ -17,7 +18,6 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -31,8 +31,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @Slf4j
 public class ObjectBusinessService {
-
-    private static final Set<String> VALID_STATUSES = Set.of("planned", "inProgress", "completed", "cancelled");
 
     private final Map<String, ObjectResponse> objectsById = new ConcurrentHashMap<>();
     private final Map<String, String> nameIndex = new ConcurrentHashMap<>();
@@ -53,12 +51,14 @@ public class ObjectBusinessService {
         this(objectRepository, eventLogRepository, null, null);
     }
 
-    public ObjectBusinessService(ObjectRepository objectRepository, EventLogRepository eventLogRepository, IntervalRepository intervalRepository) {
+    public ObjectBusinessService(ObjectRepository objectRepository, EventLogRepository eventLogRepository,
+            IntervalRepository intervalRepository) {
         this(objectRepository, eventLogRepository, intervalRepository, null);
     }
 
     @Autowired
-    public ObjectBusinessService(ObjectRepository objectRepository, EventLogRepository eventLogRepository, IntervalRepository intervalRepository, ServiceTaskRepository serviceTaskRepository) {
+    public ObjectBusinessService(ObjectRepository objectRepository, EventLogRepository eventLogRepository,
+            IntervalRepository intervalRepository, ServiceTaskRepository serviceTaskRepository) {
         this.objectRepository = objectRepository;
         this.eventLogRepository = eventLogRepository;
         this.intervalRepository = intervalRepository;
@@ -70,7 +70,7 @@ public class ObjectBusinessService {
 
         String name = normalizeName(request.name());
         ObjectType type = normalizeType(request.type());
-        String status = normalizeStatus(request.status());
+        ObjectStatus status = normalizeStatus(request.status());
         BigDecimal currentValue = normalizeValue(request.currentValue());
         LocalDate nextServiceDate = normalizeNextServiceDate(request.nextServiceDate(), type);
 
@@ -103,9 +103,9 @@ public class ObjectBusinessService {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> List<T> getObjects(ObjectType type, String status) {
+    public <T> List<T> getObjects(ObjectType type, ObjectStatus status) {
         log.info("Fetching objects with type='{}', status='{}'", type, status);
-        String normalizedStatus = status == null || status.isBlank() ? null : normalizeStatus(status);
+        ObjectStatus normalizedStatus = status;
 
         if (objectRepository != null) {
             List<ObjectResponse> result = objectRepository.findObjects(type, normalizedStatus);
@@ -117,7 +117,7 @@ public class ObjectBusinessService {
 
         List<ObjectResponse> result = objectsById.values().stream()
                 .filter(object -> type == null || object.type().equals(type.value()))
-                .filter(object -> normalizedStatus == null || object.status().equalsIgnoreCase(normalizedStatus))
+                .filter(object -> normalizedStatus == null || object.status() == normalizedStatus)
                 .sorted(Comparator.comparing(ObjectResponse::createdAt).reversed())
                 .toList();
 
@@ -157,7 +157,7 @@ public class ObjectBusinessService {
         String name = normalizeName(request.name() == null ? existing.name() : request.name());
         ObjectType type = normalizeType(
                 request.type() == null ? ObjectType.fromValue(existing.type()) : request.type());
-        String status = normalizeStatus(request.status() == null ? existing.status() : request.status());
+        ObjectStatus status = normalizeStatus(request.status() == null ? existing.status() : request.status());
         BigDecimal currentValue = normalizeValue(
                 request.currentValue() == null ? existing.currentValue() : request.currentValue());
         LocalDate nextServiceDate = normalizeNextServiceDate(
@@ -227,39 +227,8 @@ public class ObjectBusinessService {
         return type;
     }
 
-    private String normalizeStatus(String status) {
-        String normalized = status == null || status.isBlank() ? "planned" : status.trim();
-        if (normalized.contains("_")) {
-            normalized = normalized.replace("_", " ");
-            String[] words = normalized.trim().split("\\s+");
-            StringBuilder camelCase = new StringBuilder();
-            for (int i = 0; i < words.length; i++) {
-                String word = words[i];
-                if (word.isBlank()) {
-                    continue;
-                }
-                if (i == 0) {
-                    camelCase.append(word.toLowerCase());
-                } else {
-                    camelCase.append(Character.toUpperCase(word.charAt(0)))
-                            .append(word.substring(1).toLowerCase());
-                }
-            }
-            normalized = camelCase.toString();
-        } else if (normalized.equalsIgnoreCase("inprogress")) {
-            normalized = "inProgress";
-        } else {
-            normalized = normalized.toLowerCase();
-            if ("inprogress".equals(normalized)) {
-                normalized = "inProgress";
-            }
-        }
-
-        if (!VALID_STATUSES.contains(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "status must be one of: planned, inProgress, completed, cancelled");
-        }
-        return normalized;
+    private ObjectStatus normalizeStatus(ObjectStatus status) {
+        return status == null ? ObjectStatus.ACTIVE : status;
     }
 
     private BigDecimal normalizeValue(BigDecimal value) {
@@ -286,8 +255,10 @@ public class ObjectBusinessService {
     }
 
     private ObjectResponse enrichWithEvents(ObjectResponse obj) {
-        if (obj == null) return null;
-        // if no repositories available, ensure events/intervals/serviceTasks are non-null
+        if (obj == null)
+            return null;
+        // if no repositories available, ensure events/intervals/serviceTasks are
+        // non-null
         if (eventLogRepository == null && intervalRepository == null && serviceTaskRepository == null) {
             List<EventLogRecord> ev = obj.events() == null ? java.util.List.of() : obj.events();
             List<IntervalRecord> iv = obj.intervals() == null ? java.util.List.of() : obj.intervals();
@@ -299,11 +270,13 @@ public class ObjectBusinessService {
             ObjectType otype = ObjectType.fromValue(obj.type());
             List<EventLogRecord> events = obj.events() == null ? java.util.List.of() : obj.events();
             List<IntervalRecord> intervals = obj.intervals() == null ? java.util.List.of() : obj.intervals();
-            List<ServiceTaskRecord> serviceTasks = obj.serviceTasks() == null ? java.util.List.of() : obj.serviceTasks();
-            
+            List<ServiceTaskRecord> serviceTasks = obj.serviceTasks() == null ? java.util.List.of()
+                    : obj.serviceTasks();
+
             if (eventLogRepository != null && ObjectType.EVENT == otype) {
                 events = eventLogRepository.findByObjectId(UUID.fromString(obj.id()));
-                if (events == null) events = java.util.List.of();
+                if (events == null)
+                    events = java.util.List.of();
             }
             if (intervalRepository != null) {
                 List<IntervalRecord> found = intervalRepository.findByObjectId(UUID.fromString(obj.id()));
@@ -316,7 +289,8 @@ public class ObjectBusinessService {
             return new ObjectResponse(obj.id(), obj.name(), obj.type(), obj.status(), obj.createdAt(), obj.updatedAt(),
                     obj.lastChangeDate(), obj.currentValue(), obj.nextServiceDate(), events, intervals, serviceTasks);
         } catch (Exception e) {
-            // ignore and return original with events/intervals/serviceTasks fixed to empty if null
+            // ignore and return original with events/intervals/serviceTasks fixed to empty
+            // if null
             List<EventLogRecord> ev = obj.events() == null ? java.util.List.of() : obj.events();
             List<IntervalRecord> iv = obj.intervals() == null ? java.util.List.of() : obj.intervals();
             List<ServiceTaskRecord> st = obj.serviceTasks() == null ? java.util.List.of() : obj.serviceTasks();

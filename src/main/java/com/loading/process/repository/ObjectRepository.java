@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import com.loading.process.model.ValueHistoryRecord;
 import com.loading.process.model.ObjectType;
+import com.loading.process.model.ObjectStatus;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -47,12 +48,20 @@ public class ObjectRepository {
                         nextServiceDate TEXT
                     )
                     """);
+            statement.executeUpdate("""
+                    UPDATE objects SET status = CASE
+                        WHEN LOWER(status) IN ('planned', 'in_progress', 'inprogress', 'active') THEN 'active'
+                        WHEN LOWER(status) IN ('completed', 'cancelled', 'inactive') THEN 'inactive'
+                        ELSE status
+                    END
+                    WHERE LOWER(status) IN ('planned', 'in_progress', 'inprogress', 'completed', 'cancelled')
+                    """);
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to initialize SQLite database", e);
         }
     }
 
-    public List<ObjectResponse> findObjects(ObjectType type, String status) {
+    public List<ObjectResponse> findObjects(ObjectType type, ObjectStatus status) {
         StringBuilder sql = new StringBuilder(
                 "SELECT id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate FROM Object WHERE 1=1");
         List<String> params = new ArrayList<>();
@@ -61,9 +70,9 @@ public class ObjectRepository {
             sql.append(" AND type = ?");
             params.add(type.value());
         }
-        if (status != null && !status.isBlank()) {
+        if (status != null) {
             sql.append(" AND status = ?");
-            params.add(status.trim().toLowerCase());
+            params.add(status.value());
         }
 
         sql.append(" ORDER BY createdAt DESC");
@@ -112,7 +121,7 @@ public class ObjectRepository {
             statement.setString(1, object.id());
             statement.setString(2, object.name());
             statement.setString(3, object.type());
-            statement.setString(4, object.status());
+            statement.setString(4, object.status().value());
             statement.setString(5, Objects.toString(object.createdAt(), null));
             statement.setString(6, Objects.toString(object.updatedAt(), null));
             statement.setString(7, Objects.toString(object.lastChangeDate(), null));
@@ -130,7 +139,7 @@ public class ObjectRepository {
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, object.name());
             statement.setString(2, object.type());
-            statement.setString(3, object.status());
+            statement.setString(3, object.status().value());
             statement.setString(4, Objects.toString(object.updatedAt(), null));
             statement.setString(5, Objects.toString(object.lastChangeDate(), null));
             statement.setString(6, object.currentValue() == null ? null : object.currentValue().toPlainString());
@@ -159,7 +168,7 @@ public class ObjectRepository {
                 rs.getString("id"),
                 rs.getString("name"),
                 rs.getString("type"),
-                rs.getString("status"),
+                ObjectStatus.fromValue(rs.getString("status")),
                 Instant.parse(rs.getString("createdAt")),
                 Instant.parse(rs.getString("updatedAt")),
                 Instant.parse(rs.getString("lastChangeDate")),

@@ -6,11 +6,11 @@ import java.time.LocalDate;
 public record CreateObjectRequest(
         String name,
         ObjectType type,
-        String status,
+        ObjectStatus status,
         BigDecimal currentValue,
         LocalDate nextServiceDate) {
 
-    public CreateObjectRequest(String name, String type, String status,
+    public CreateObjectRequest(String name, String type, ObjectStatus status,
             BigDecimal currentValue, LocalDate nextServiceDate) {
         this(name, ObjectType.fromValue(type), status, currentValue, nextServiceDate);
     }

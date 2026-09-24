@@ -6,6 +6,7 @@ import com.loading.process.model.EventLogRecord;
 import com.loading.process.model.EventLogResponse;
 import com.loading.process.model.ObjectResponse;
 import com.loading.process.model.ObjectType;
+import com.loading.process.model.ObjectStatus;
 import com.loading.process.model.UpdateObjectRequest;
 import com.loading.process.model.UserRecord;
 import com.loading.process.model.CreateIntervalRequest;
@@ -17,6 +18,7 @@ import com.loading.process.model.IntervalRecord;
 import com.loading.process.model.ServiceTaskRecord;
 import com.loading.process.model.ValueHistoryRecord;
 import com.loading.process.model.NotificationRecord;
+import com.loading.process.model.NotificationStatus;
 import com.loading.process.repository.EventLogRepository;
 import com.loading.process.repository.IntervalRepository;
 import com.loading.process.repository.ServiceTaskRepository;
@@ -57,7 +59,10 @@ public class HandleApi {
     }
 
     @Autowired
-    public HandleApi(ObjectBusinessService objectBusinessService, EventLogRepository eventLogRepository, IntervalRepository intervalRepository, ServiceTaskRepository serviceTaskRepository, UserRepository userRepository, ValueHistoryRepository valueHistoryRepository, NotificationRepository notificationRepository) {
+    public HandleApi(ObjectBusinessService objectBusinessService, EventLogRepository eventLogRepository,
+            IntervalRepository intervalRepository, ServiceTaskRepository serviceTaskRepository,
+            UserRepository userRepository, ValueHistoryRepository valueHistoryRepository,
+            NotificationRepository notificationRepository) {
         this.objectBusinessService = objectBusinessService;
         this.eventLogRepository = eventLogRepository;
         this.intervalRepository = intervalRepository;
@@ -71,11 +76,23 @@ public class HandleApi {
     public <T> ResponseEntity<List<T>> getObjects(
             @RequestParam(required = false) ObjectType type,
             @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(objectBusinessService.getObjects(type, status));
+        return ResponseEntity.ok(objectBusinessService.getObjects(type, parseObjectStatus(status)));
     }
 
     public <T> ResponseEntity<List<T>> getObjects(String type, String status) {
         return getObjects(type == null || type.isBlank() ? null : ObjectType.fromValue(type), status);
+    }
+
+    private ObjectStatus parseObjectStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        try {
+            return ObjectStatus.fromValue(status);
+        } catch (IllegalArgumentException exception) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "status must be one of: active, inactive", exception);
+        }
     }
 
     @GetMapping("/objects/{id}")
@@ -129,7 +146,8 @@ public class HandleApi {
             ObjectResponse object = null;
             try {
                 object = objectBusinessService.getObject(e.objectId().toString());
-            } catch (org.springframework.web.server.ResponseStatusException ex) { }
+            } catch (org.springframework.web.server.ResponseStatusException ex) {
+            }
             UserRecord user = null;
             if (userRepository != null && e.userId() != null) {
                 user = userRepository.findById(e.userId());
@@ -158,7 +176,8 @@ public class HandleApi {
         ObjectResponse object = null;
         try {
             object = objectBusinessService.getObject(saved.objectId().toString());
-        } catch (org.springframework.web.server.ResponseStatusException ex) { }
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+        }
         UserRecord user = null;
         if (userRepository != null && saved.userId() != null) {
             user = userRepository.findById(saved.userId());
@@ -189,7 +208,8 @@ public class HandleApi {
         ObjectResponse object = null;
         try {
             object = objectBusinessService.getObject(updated.objectId().toString());
-        } catch (org.springframework.web.server.ResponseStatusException ex) { }
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+        }
         UserRecord user = null;
         if (userRepository != null && updated.userId() != null) {
             user = userRepository.findById(updated.userId());
@@ -251,14 +271,14 @@ public class HandleApi {
                 request.objectId(),
                 request.intervalValue(),
                 request.intervalUnit(),
-                request.createdAt() == null ? LocalDateTime.now() : request.createdAt()
-        );
+                request.createdAt() == null ? LocalDateTime.now() : request.createdAt());
         IntervalRecord saved = intervalRepository.save(interval);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/intervals/{id}")
-    public ResponseEntity<IntervalRecord> updateInterval(@PathVariable UUID id, @RequestBody CreateIntervalRequest request) {
+    public ResponseEntity<IntervalRecord> updateInterval(@PathVariable UUID id,
+            @RequestBody CreateIntervalRequest request) {
         requireIntervalRepository();
         if (request == null || request.objectId() == null || request.intervalUnit() == null) {
             throw new org.springframework.web.server.ResponseStatusException(
@@ -272,8 +292,7 @@ public class HandleApi {
                 request.objectId(),
                 request.intervalValue(),
                 request.intervalUnit(),
-                request.createdAt() == null ? LocalDateTime.now() : request.createdAt()
-        );
+                request.createdAt() == null ? LocalDateTime.now() : request.createdAt());
         IntervalRecord updated = intervalRepository.update(interval);
         return ResponseEntity.ok(updated);
     }
@@ -336,8 +355,7 @@ public class HandleApi {
                 java.util.UUID.randomUUID(),
                 request.username().trim(),
                 request.email().trim(),
-                request.role()
-        );
+                request.role());
         UserRecord saved = userRepository.save(user);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
@@ -370,8 +388,7 @@ public class HandleApi {
                 id,
                 request.username().trim(),
                 request.email().trim(),
-                request.role()
-        );
+                request.role());
         UserRecord updated = userRepository.update(user);
         return ResponseEntity.ok(updated);
     }
@@ -432,14 +449,14 @@ public class HandleApi {
                 request.plannedDate(),
                 request.completedDate(),
                 request.status() == null ? "planned" : request.status(),
-                request.comment()
-        );
+                request.comment());
         ServiceTaskRecord saved = serviceTaskRepository.save(task);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/service-tasks/{id}")
-    public ResponseEntity<ServiceTaskRecord> updateServiceTask(@PathVariable UUID id, @RequestBody CreateServiceTaskRequest request) {
+    public ResponseEntity<ServiceTaskRecord> updateServiceTask(@PathVariable UUID id,
+            @RequestBody CreateServiceTaskRequest request) {
         if (request == null) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Request body is required");
@@ -464,8 +481,7 @@ public class HandleApi {
                 request.plannedDate(),
                 request.completedDate(),
                 request.status() == null ? "planned" : request.status(),
-                request.comment()
-        );
+                request.comment());
         ServiceTaskRecord updated = serviceTaskRepository.update(task);
         return ResponseEntity.ok(updated);
     }
@@ -524,14 +540,14 @@ public class HandleApi {
                 java.util.UUID.randomUUID(),
                 request.objectId(),
                 request.timestamp() == null ? LocalDateTime.now() : request.timestamp(),
-                request.value()
-        );
+                request.value());
         ValueHistoryRecord saved = valueHistoryRepository.save(history);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/value-histories/{id}")
-    public ResponseEntity<ValueHistoryRecord> updateValueHistory(@PathVariable UUID id, @RequestBody CreateValueHistoryRequest request) {
+    public ResponseEntity<ValueHistoryRecord> updateValueHistory(@PathVariable UUID id,
+            @RequestBody CreateValueHistoryRequest request) {
         if (request == null) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Request body is required");
@@ -554,8 +570,7 @@ public class HandleApi {
                 id,
                 request.objectId(),
                 request.timestamp() == null ? LocalDateTime.now() : request.timestamp(),
-                request.value()
-        );
+                request.value());
         ValueHistoryRecord updated = valueHistoryRepository.update(history);
         return ResponseEntity.ok(updated);
     }
@@ -625,15 +640,16 @@ public class HandleApi {
                 request.userId(),
                 LocalDateTime.now(),
                 request.message(),
+                request.status() == null ? NotificationStatus.PENDING : request.status(),
                 request.isRead(),
-                null
-        );
+                null);
         NotificationRecord saved = notificationRepository.save(notification);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/notifications/{id}")
-    public ResponseEntity<NotificationRecord> updateNotification(@PathVariable UUID id, @RequestBody CreateNotificationRequest request) {
+    public ResponseEntity<NotificationRecord> updateNotification(@PathVariable UUID id,
+            @RequestBody CreateNotificationRequest request) {
         if (request == null) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Request body is required");
@@ -648,7 +664,8 @@ public class HandleApi {
         }
         requireNotificationRepository();
 
-        if (notificationRepository.findById(id) == null) {
+        NotificationRecord existing = notificationRepository.findById(id);
+        if (existing == null) {
             return ResponseEntity.notFound().build();
         }
 
@@ -658,9 +675,9 @@ public class HandleApi {
                 request.userId(),
                 LocalDateTime.now(),
                 request.message(),
+                request.status() == null ? existing.status() : request.status(),
                 request.isRead(),
-                null
-        );
+                null);
         NotificationRecord updated = notificationRepository.update(notification);
         return ResponseEntity.ok(updated);
     }
@@ -681,4 +698,3 @@ public class HandleApi {
         }
     }
 }
-
