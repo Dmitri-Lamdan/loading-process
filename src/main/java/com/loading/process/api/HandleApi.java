@@ -79,6 +79,11 @@ public class HandleApi {
         return ResponseEntity.ok(objectBusinessService.getObjects(type, parseObjectStatus(status)));
     }
 
+    @GetMapping("/objects/actual")
+    public ResponseEntity<List<ObjectResponse>> getActualObjects() {
+        return ResponseEntity.ok(objectBusinessService.getActualObjects());
+    }
+
     public <T> ResponseEntity<List<T>> getObjects(String type, String status) {
         return getObjects(type == null || type.isBlank() ? null : ObjectType.fromValue(type), status);
     }

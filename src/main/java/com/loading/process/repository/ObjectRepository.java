@@ -63,7 +63,7 @@ public class ObjectRepository {
 
     public List<ObjectResponse> findObjects(ObjectType type, ObjectStatus status) {
         StringBuilder sql = new StringBuilder(
-                "SELECT id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate FROM Object WHERE 1=1");
+                "SELECT id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate FROM objects WHERE 1=1");
         List<String> params = new ArrayList<>();
 
         if (type != null) {
@@ -97,7 +97,7 @@ public class ObjectRepository {
     }
 
     public ObjectResponse findById(String id) {
-        String sql = "SELECT id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate FROM Object WHERE id = ?";
+        String sql = "SELECT id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate FROM objects WHERE id = ?";
         try (Connection connection = connectionProvider.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, id);
@@ -113,7 +113,7 @@ public class ObjectRepository {
     }
 
     public void save(ObjectResponse object) {
-        String sql = "INSERT INTO Object (\n" +
+        String sql = "INSERT INTO objects (\n" +
                 "    id, name, type, status, createdAt, updatedAt, lastChangeDate, currentValue, nextServiceDate\n" +
                 ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection connection = connectionProvider.getConnection();
@@ -134,7 +134,7 @@ public class ObjectRepository {
     }
 
     public void update(ObjectResponse object) {
-        String sql = "UPDATE Object SET name = ?, type = ?, status = ?, updatedAt = ?, lastChangeDate = ?, currentValue = ?, nextServiceDate = ? WHERE id = ?";
+        String sql = "UPDATE objects SET name = ?, type = ?, status = ?, updatedAt = ?, lastChangeDate = ?, currentValue = ?, nextServiceDate = ? WHERE id = ?";
         try (Connection connection = connectionProvider.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, object.name());
@@ -152,7 +152,7 @@ public class ObjectRepository {
     }
 
     public void delete(String id) {
-        String sql = "DELETE FROM Object WHERE id = ?";
+        String sql = "DELETE FROM objects WHERE id = ?";
 
         try (Connection connection = connectionProvider.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {

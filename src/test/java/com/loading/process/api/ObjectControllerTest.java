@@ -8,17 +8,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.loading.process.model.CreateObjectRequest;
 import com.loading.process.model.ObjectResponse;
 import com.loading.process.model.ObjectStatus;
+import com.loading.process.model.ServiceTaskRecord;
 import com.loading.process.model.UpdateObjectRequest;
+import com.loading.process.repository.DatabaseConnectionProvider;
+import com.loading.process.repository.ObjectRepository;
+import com.loading.process.repository.ServiceTaskRepository;
+import com.loading.process.service.ObjectBusinessService;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 class ObjectControllerTest {
+
+        @TempDir
+        Path tempDir;
 
         @Test
         void createObject_shouldReturnCreatedObject() {
@@ -70,6 +81,74 @@ class ObjectControllerTest {
                 assertEquals(HttpStatus.OK, response.getStatusCode());
                 assertEquals(1, response.getBody().size());
                 assertEquals("First", response.getBody().getFirst().name());
+        }
+
+        @Test
+        void getActualObjects_shouldIncludeActiveObjectsRegardlessOfTypeDateOrValueInMemory() {
+                HandleApi controller = new HandleApi();
+                ObjectResponse pastCalendarObject = controller.createObject(new CreateObjectRequest(
+                                "Past calendar object", "calendar", ObjectStatus.ACTIVE,
+                                new BigDecimal("-5.25"), LocalDate.of(2020, 1, 1))).getBody();
+                ObjectResponse futureEventObject = controller.createObject(new CreateObjectRequest(
+                                "Future event object", "event", ObjectStatus.ACTIVE,
+                                new BigDecimal("999999.99"), LocalDate.of(2099, 12, 31))).getBody();
+                controller.createObject(new CreateObjectRequest(
+                                "Inactive object", "mileage", ObjectStatus.INACTIVE,
+                                BigDecimal.ONE, LocalDate.now()));
+
+                ResponseEntity<List<ObjectResponse>> response = controller.getActualObjects();
+
+                assertEquals(HttpStatus.OK, response.getStatusCode());
+                assertEquals(Set.of(pastCalendarObject.id(), futureEventObject.id()),
+                                response.getBody().stream().map(ObjectResponse::id)
+                                                .collect(java.util.stream.Collectors.toSet()));
+                assertTrue(response.getBody().stream()
+                                .allMatch(object -> object.status() == ObjectStatus.ACTIVE));
+        }
+
+        @Test
+        void getActualObjects_shouldUseActiveStatusOnlyAndPreserveTaskDetailsWithSqliteRepository() {
+                DatabaseConnectionProvider connectionProvider = new DatabaseConnectionProvider(
+                                "jdbc:sqlite:" + tempDir.resolve("actual-objects.db"));
+                ObjectRepository objectRepository = new ObjectRepository(connectionProvider);
+                ServiceTaskRepository serviceTaskRepository = new ServiceTaskRepository(connectionProvider);
+                ObjectBusinessService service = new ObjectBusinessService(
+                                objectRepository, null, null, serviceTaskRepository);
+                HandleApi controller = new HandleApi(service, null, null, null, null, null, null);
+
+                ObjectResponse pastCalendarObject = controller.createObject(new CreateObjectRequest(
+                                "Past calendar object", "calendar", ObjectStatus.ACTIVE,
+                                BigDecimal.ZERO, LocalDate.of(2020, 1, 1))).getBody();
+                ObjectResponse futureEventObject = controller.createObject(new CreateObjectRequest(
+                                "Future event object", "event", ObjectStatus.ACTIVE,
+                                new BigDecimal("500.50"), LocalDate.of(2099, 12, 31))).getBody();
+                controller.createObject(new CreateObjectRequest(
+                                "Inactive object", "combined", ObjectStatus.INACTIVE,
+                                BigDecimal.ONE, LocalDate.now()));
+
+                serviceTaskRepository.save(new ServiceTaskRecord(
+                                UUID.randomUUID(), UUID.fromString(pastCalendarObject.id()),
+                                LocalDate.of(2020, 1, 1), LocalDate.of(2020, 1, 2), "completed", "done"));
+                serviceTaskRepository.save(new ServiceTaskRecord(
+                                UUID.randomUUID(), UUID.fromString(futureEventObject.id()),
+                                LocalDate.of(2099, 12, 30), null, "planned", "upcoming"));
+
+                ResponseEntity<List<ObjectResponse>> response = controller.getActualObjects();
+
+                assertEquals(HttpStatus.OK, response.getStatusCode());
+                assertEquals(Set.of(pastCalendarObject.id(), futureEventObject.id()),
+                                response.getBody().stream().map(ObjectResponse::id)
+                                                .collect(java.util.stream.Collectors.toSet()));
+                ObjectResponse returnedCalendarObject = response.getBody().stream()
+                                .filter(object -> object.id().equals(pastCalendarObject.id()))
+                                .findFirst().orElseThrow();
+                ObjectResponse returnedEventObject = response.getBody().stream()
+                                .filter(object -> object.id().equals(futureEventObject.id()))
+                                .findFirst().orElseThrow();
+                assertEquals("completed", returnedCalendarObject.serviceTasks().getFirst().status());
+                assertEquals("planned", returnedEventObject.serviceTasks().getFirst().status());
+                assertNotNull(returnedCalendarObject.events());
+                assertNotNull(returnedCalendarObject.intervals());
         }
 
         @Test

@@ -127,6 +127,10 @@ public class ObjectBusinessService {
         return (List<T>) enriched;
     }
 
+    public List<ObjectResponse> getActualObjects() {
+        return getObjects(null, ObjectStatus.ACTIVE);
+    }
+
     public ObjectResponse getObject(String id) {
         if (objectRepository != null) {
             ObjectResponse object = objectRepository.findById(id);
